@@ -59,9 +59,11 @@ class gridSKy():
                         for k in range(dim):
                             temarray = np.append(temarray , dqueue[pruned[-1][1]].__dict__['locations'][i][k])
                         temarray = np.array(temarray).reshape(1,dim)
+                        temarray = np.append(temarray , Min ,axis=0)
+                        temarray = np.append(temarray , Max ,axis=0)
                         test = gsp.Grid(temarray,n)
                         uncertainData = test.cell_id(temarray)
-                        uncertainDataGrid = np.where( cell_array == uncertainData )
+                        uncertainDataGrid = np.where( cell_array == uncertainData[0] )
                         for k in range(dim):
                             if uncertainDataGrid[k][0]>self.tem_array[pruned[j][1]][k]:
                                 tag = tag+1
@@ -69,10 +71,12 @@ class gridSKy():
                                 continue
                 if tag == dim*ps:
                     self.window = np.delete( self.window , -1 , axis=0)
+                    break
                 else:
                     continue
             """del new data"""
 
+            
             a = np.empty(0,int)
             for j in range(len(self.window) -1):
                 tag = 0
@@ -88,9 +92,11 @@ class gridSKy():
                         for k in range(dim):
                             temarray = np.append(temarray , dqueue[pruned[j][1]].__dict__['locations'][i][k])
                         temarray = np.array(temarray).reshape(1,dim)
+                        temarray = np.append(temarray , Min ,axis=0)
+                        temarray = np.append(temarray , Max ,axis=0)
                         test = gsp.Grid(temarray,n)
                         uncertainData = test.cell_id(temarray)
-                        uncertainDataGrid = np.where( cell_array == uncertainData )
+                        uncertainDataGrid = np.where( cell_array == uncertainData[0] )
                         for k in range(dim):
                             if self.tem_array[pruned[-1][1]][k]<uncertainDataGrid[k][0]:
                                 tag = tag+1
@@ -103,11 +109,12 @@ class gridSKy():
             for j in range(len(a)):
                 self.window = np.delete( self.window , a[j] , axis=0)
             """del old data"""
+
     def showSkyline(self,i):
         #figure show
         plt.subplot(5, 5, i+1 , aspect="equal")
-        plt.title(i+1)
-        plt.scatter(self.window[:, 2], self.window[:, 3], c="r", marker=".", s=5)
+        plt.title(i)
+        plt.scatter(self.window[:, 2], self.window[:, 3], c="r", marker=".", s=30)
         plt.xlim(0,1000)
         plt.ylim(0,1000)
         #          x_axis_data,y_axis_data,color,       marker size
@@ -120,9 +127,10 @@ if __name__ == '__main__':
     count = 25
     dim = 2
     ps = 5
-    n = 32
     wsize = 10
-    
+    range_min = 0
+    range_max = 1000
+    n = 32
 
     dqueue = batchImport('25_dim2_pos5_rad5_01000.csv', ps)
     gravityarray = np.empty((0, dim), int)
@@ -140,9 +148,13 @@ if __name__ == '__main__':
 
 
     data = gravityarray[: , 1:dim+1]
+    Min = np.full((1,dim), range_min)
+    Max = np.full((1,dim), range_max)
+    data = np.append(data , Min , axis=0)
+    data = np.append(data , Max , axis=0)
     test = gsp.Grid(data,n)
     tmp_cellID_array = test.cell_id(data)
-    grid_array = np.c_[ tmp_cellID_array , gravityarray]
+    grid_array = np.c_[ tmp_cellID_array[: -2] , gravityarray]
     """ grid_array:[grid_cell_id , point number , dim0 , dim1...] """
 
     cell_array = np.arange( n**dim ).reshape(n,n)
@@ -158,7 +170,6 @@ if __name__ == '__main__':
         # code = z.interlace(int(tem[0]) , int(tem[1]) )
         # Z_array = np.append(Z_array , [code])
     # Z_array = np.c_[ Z_array , empty_array]
-    # print(tem_array)
     """Z_array:[Z_order_id , point number , dim0 , dim1...]"""
 
     plt.figure(0, figsize=(7, 7))
@@ -166,6 +177,7 @@ if __name__ == '__main__':
     test = gridSKy(dim, wsize ,tem_array,dqueue)
     for i in range (count):
         test.receiveData(grid_array[i])
+        print(i)
         test.updateSkyline()
         test.showSkyline(i)
 
