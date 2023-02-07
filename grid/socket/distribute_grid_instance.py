@@ -124,7 +124,6 @@ class gridSKy():
                 tag = 0
                 # """
                 for i3 in range(dim):
-                    p2 = max([i[i3] for i in dqueue[cell_skyline[i2][0]].locations])
                     for i4 in range(ps):
                         for i5 in range(ps):
                             p1 = dqueue[cell_skyline[i1][0]].locations[i4][i3]
