@@ -195,8 +195,8 @@ if __name__ == '__main__':
         # r2.write("data slot: %s \n" % (i))
         # r2.write("skyline: %s \n" % (cell_skyline))
         # test.showSkyline(i,np.array(cell_skyline))
-    avgcellsky = avgcellsky/10000
-    avgsk1 = avgsk1/10000
+    avgcellsky = avgcellsky/count
+    avgsk1 = avgsk1/count
     print('Avg. sky1: '+ str(avgsk1))
     print('avgcellsky:', avgcellsky)
     print("--- %s seconds ---" % (time.time() - start_time))
