@@ -10,6 +10,7 @@ import numpy as np
 import gridindex as gsp
 import matplotlib.pyplot as plt
 from data.dataClass import Data, batchImport
+from zCurve import zCurve as z
 here = os.path.dirname(os.path.abspath(__file__))
 
 class gridSKy():
@@ -37,52 +38,14 @@ class gridSKy():
         self.range_max = range_max
         self.gridcut = gridcut
         self.ps = ps # possible instance count
-        self.window = np.empty((0, self.dim+2), int) # sliding window
-        self.skyline1 = np.empty((0, self.dim+2), int) 
+        self.window = [] # sliding window
+        self.skyline1 = []
         self.wsize = wsize # sliding window size
         self.dqueue = dqueue
-        self.outdated = np.empty((0, self.dim+2), int) # temporary storage for outdated data
-        self.gravityarray = np.empty((0, self.dim), int)
-        self.grid_array = np.empty((0, self.dim+2), int)
-        self.grid_cell_array = np.empty((0, self.dim), int)
+        self.outdated = [] # temporary storage for outdated data
 
-    def turngravity(self):
-        temp_gravityarray = np.empty((0, self.dim), int)
-        for i in range(self.count):
-            testlist = self.dqueue[i].__dict__['locations']
-            tem = np.empty(0 , int)
-            for j in range(self.dim):  
-                temp = 0
-                for i3 in range(self.ps):
-                    temp = testlist[i3][j] + temp
-                tem = np.append(tem , int(temp/self.ps))
-            temp_gravityarray = np.append(temp_gravityarray , [tem] , axis=0)
-        data_number = np.arange(self.count)
-        self.gravityarray = np.c_[ data_number , temp_gravityarray ]
-        return self.gravityarray
-
-    def turngrid(self, d):
-        data = d[: , 1:self.dim+1]
-        self.Min = np.full((1,self.dim), self.range_min)
-        self.Max = np.full((1,self.dim), self.range_max)
-        data = np.append(data , self.Min , axis=0)
-        data = np.append(data , self.Max , axis=0)
-        test = gsp.Grid(data, self.gridcut)
-        self.tmp_cellID_array = test.cell_id(data)
-        self.grid_array = np.c_[ self.tmp_cellID_array[: -2] , self.gravityarray]
-        return self.grid_array 
-
-    def turngridcell(self):
-        self.cell_array = np.arange(self.gridcut**self.dim ).reshape(self.gridcut,self.gridcut)
-        tem_array = np.empty((0, self.dim), int)
-        for i in range (self.count):
-            x = np.where( self.cell_array == self.tmp_cellID_array[i] )
-            tem = np.empty(0 , int)
-            for j in range(self.dim):
-                tem = np.append(tem , int(x[j][0]))
-            tem_array = np.append(tem_array , [tem] , axis=0)
-        self.grid_cell_array = tem_array
-        return self.grid_cell_array
+    def returnWindow(self):
+        return self.window
         
     def receiveData(self, d):
         """
@@ -92,54 +55,91 @@ class gridSKy():
             The received data
         """
         if len(self.window) >= self.wsize:
-            self.outdated = np.append(self.outdated , [self.window[0]] , axis=0)
-            self.window = np.delete( self.window , 0, axis=0)
-        self.window = np.append(self.window , [d] , axis=0)
+            self.outdated.append(self.window[0])
+            del self.window[0]
+        self.window.append(d)
         return self.outdated
         
-    def updateSkyline(self):
+    def updateCellSkyline(self):
         pruned = self.window.copy()
-        a = np.empty(0,int)
+        clean = []
+        jump = 0
         for  i1 in range(len(pruned)):
             for i2 in range(len(pruned)):
                 if i1 == i2:
                     continue
+                """two of data gravity in sliding window compare with each other """
                 tag = 0
-                for i3 in range(self.dim):
-                    if self.grid_cell_array[pruned[i1][1]][i3] > self.grid_cell_array[pruned[i2][1]][i3]:
-                        tag = tag+1
-                    else:
-                        continue
-                if tag == self.dim :
-                    tag = 0
-                    for i3 in range(self.ps):
-                        temarray = np.empty(0, int)
-                        for i4 in range(self.dim):
-                            temarray = np.append(temarray , dqueue[pruned[i1][1]].__dict__['locations'][i3][i4])
-                        temarray = np.array(temarray).reshape(1,dim)
-                        temarray = np.append(temarray , self.Min ,axis=0)
-                        temarray = np.append(temarray , self.Max ,axis=0)
-                        test = gsp.Grid(temarray,self.gridcut)
-                        uncertainData = test.cell_id(temarray)
-                        uncertainDataGrid = np.where( self.cell_array == uncertainData[0] )
-                        for i4 in range(dim):
-                            if uncertainDataGrid[i4][0]>self.grid_cell_array[pruned[i2][1]][i4]:
-                                tag = tag + 1
-                            else:
-                                continue
-                if tag == dim*ps:
-                    a = np.insert(a , 0 , i1 )
-                    break
-                else:
+                boundary = 0
+                for i3 in range(dim):
+                    if pruned[i1][i3+1] <= pruned[i2][i3+1]:
+                        tag += 1
+                    """compare the gravity"""
+                if tag != 0:
                     continue
-        for i1 in range(len(a)):
-            pruned = np.delete(pruned , a[i1] , axis=0)
-
-        self.skyline1 = pruned
-        return self.skyline1
+                else:
+                    for i3 in range(dim):
+                        if pruned[i1][i3+1] - pruned[i2][i3+1] == 1:
+                            boundary = 1
+                            break
+                    """tag the boundary"""
+                    if boundary == 0:
+                        jump += 1
+                        clean.append(pruned[i1])
+                    else:
+                        tag = 0
+                        for i3 in range(dim):
+                            for i4 in range(ps):
+                                for i5 in range(ps):
+                                    if alldigits_list[pruned[i1][0]*ps+i4][i3] > alldigits_list[pruned[i2][0]*ps+i5][i3]:
+                                        continue
+                                    else:
+                                        tag += 1
+                        if tag == 0:
+                            jump += 1
+                            clean.append(pruned[i1])
+                        """check all instances"""
+                if jump != 0:
+                    break
+        for i1 in range(len(clean)):
+            if clean[i1] in pruned:
+                pruned.remove(clean[i1])
+        """get the cell skyline"""
+        return pruned
+    
+    def updateSkyline(self,cell_skyline):
+        clean = []
+        jump = 0
+        for i1 in range(len(cell_skyline)):
+            for i2 in range(len(cell_skyline)):
+                if i1 == i2:
+                    continue
+                """two of data in cell skyline compare with each other """
+                tag = 0
+                for i3 in range(dim):
+                    for i4 in range(ps):
+                        for i5 in range(ps):
+                            p1 = dqueue[cell_skyline[i1][0]].locations[i4][i3]
+                            p2 = dqueue[cell_skyline[i2][0]].locations[i5][i3]
+                            if p1 > p2:
+                                continue
+                            else:
+                                tag += 1
+                if tag == 0:
+                    jump += 1
+                    clean.append(cell_skyline[i1])
+                    break
+            if jump != 0:
+                continue
+        for i1 in range(len(clean)):
+            if clean[i1] in cell_skyline:
+                cell_skyline.remove(clean[i1])
+        """get the skyline"""
+        self.outdated.clear()
+        return cell_skyline
 
 class servergridSky():
-    def __init__(self, grid_cell_array, gridsk1):
+    def __init__(self, digits_list, gridsk1, sw,slidingwindow):
         """
         Initializer
 
@@ -151,8 +151,11 @@ class servergridSky():
         :param grid_cell_array: array
             grid_array:[grid_cell_id , point number , dim0 , dim1...]
         """
-        self.grid_cell_array = grid_cell_array
+        self.grid_cell_array = digits_list
         self.gridsk1 = gridsk1
+        self.wsize = sw
+        self.window = slidingwindow
+
     def receive(self, data):
         """
         Update data received by server
@@ -162,58 +165,47 @@ class servergridSky():
             Delete: outdated data
             SK1: new data in skyline set
         """
-        # print(data[0])
         if len(data[0]['Delete']) > 0:
             for d in data[0]['Delete']:
-                sk1_id = np.where(d[1] == self.gridsk1)
-                if sk1_id[1][0] == 1:
-                    self.gridsk1 = np.delete( self.gridsk1 , sk1_id[0][0], axis=0)
+                if d in self.window:
+                    self.window.remove(d)
         if len(data[0]['SK1']) > 0:
             for d in data[0]['SK1']:
-                sk1_id = np.where(d[1] == self.gridsk1)
-                if np.size(sk1_id[0]) == 0:
-                    self.gridsk1 = np.append(self.gridsk1 , [d] , axis=0)
+                if d not in self.window:
+                    self.window.append(d)
+        while(len(self.gridsk1) > self.wsize):
+            del self.gridsk1[0]
 
     def update(self):
         pruned = self.gridsk1.copy()
-        a = np.empty(0,int)
-        for  i1 in range(len(pruned)):
+        clean = []
+        jump = 0
+        for i1 in range(len(pruned)):
             for i2 in range(len(pruned)):
                 if i1 == i2:
                     continue
+                """two of data in cell skyline compare with each other """
                 tag = 0
                 for i3 in range(dim):
-                    if self.grid_cell_array[pruned[i1][1]][i3] > self.grid_cell_array[pruned[i2][1]][i3]:
-                        tag = tag+1
-                    else:
-                        continue
-                if tag == dim :
-                    tag = 0
-                    for i3 in range(ps):
-                        temarray = np.empty(0, int)
-                        for i4 in range(dim):
-                            temarray = np.append(temarray , dqueue[pruned[i1][1]].__dict__['locations'][i3][i4])
-                        temarray = np.array(temarray).reshape(1,dim)
-                        temarray = np.append(temarray , gridsky.Min ,axis=0)
-                        temarray = np.append(temarray , gridsky.Max ,axis=0)
-                        test = gsp.Grid(temarray,gridcut)
-                        uncertainData = test.cell_id(temarray)
-                        uncertainDataGrid = np.where( gridsky.cell_array == uncertainData[0] )
-                        for i4 in range(dim):
-                            if uncertainDataGrid[i4][0]>self.grid_cell_array[pruned[i2][1]][i4]:
-                                tag = tag + 1
-                            else:
+                    for i4 in range(ps):
+                        for i5 in range(ps):
+                            p1 = dqueue[cell_skyline[i1][0]].locations[i4][i3]
+                            p2 = dqueue[cell_skyline[i2][0]].locations[i5][i3]
+                            if p1 > p2:
                                 continue
-                if tag == dim*ps:
-                    a = np.insert(a , 0 , i1 )
+                            else:
+                                tag += 1
+                if tag == 0:
+                    jump += 1
+                    clean.append(cell_skyline[i1])
                     break
-                else:
-                    continue
-        for i1 in range(len(a)):
-            pruned = np.delete(pruned , a[i1] , axis=0)
-
-        self.outdated = np.empty((0, dim+2), int)
-        self.skyline1 = pruned
+            if jump != 0:
+                continue
+        for i1 in range(len(clean)):
+            if clean[i1] in cell_skyline:
+                cell_skyline.remove(clean[i1])
+        """get the skyline"""
+        skyline = cell_skyline
 
 if __name__ == "__main__":
     rank=(2,4,6,8,10,12,14,16) #edge number
@@ -232,28 +224,63 @@ if __name__ == "__main__":
                 
             for k in range(edgenum):
                 eid = str(k) #edge id
-                count = 25
+                count = 10000
                 dim = 2
                 ps = 5
                 range_min = 0
                 range_max = 1000
-                gridcut = 32
+                gridcut = 10
 
-                dqueue = batchImport('25_dim2_pos5_rad5_01000.csv', ps)
+                dqueue = batchImport('10000_dim2_pos5_rad5_01000.csv', ps)
+                gravityarray = np.empty((0, dim), int)
+                allarray = np.empty((0, dim), int)
+                for i in range(count):
+                    testlist = dqueue[i].__dict__['locations']
+                    allarray = np.append(allarray, testlist ,axis=0)
+                    tem = np.empty(0 , int)
+                    for j in range(dim):  
+                        temp = 0
+                        for kk in range(ps):
+                            temp = testlist[kk][j] + temp
+                        tem = np.append(tem , int(temp/ps))
+                    gravityarray = np.append(gravityarray , [tem] , axis=0)
+
+                data = gravityarray
+                Min = np.full((1,dim), range_min)
+                Max = np.full((1,dim), range_max)
+                data = np.append(data , Min , axis=0)
+                data = np.append(data , Max , axis=0)
+                test = gsp.Grid(data,gridcut)
+                digits = test.cell_digits(data)
+                digits_list = []
+                for i in range(count):
+                    tupletemp = []
+                    tupletemp.append(i)
+                    for j in range(dim):
+                        tupletemp.append(int(digits[i][j])) 
+                    digits_list.append(tupletemp)
+
+                allarray = np.append(allarray , Min , axis=0)
+                allarray = np.append(allarray , Max , axis=0)
+                alldigits = test.cell_digits(allarray)
+                alldigits_list = []
+                for i in range(count*ps):
+                    tupletemp = []
+                    for j in range(dim):
+                        tupletemp.append(int(alldigits[i][j])) 
+                    alldigits_list.append(tupletemp)
+                """alldigits: all the instances turn to grid digits"""
+
                 gridsky = gridSKy(count, dim, range_min, range_max, gridcut, ew, dqueue)
-
-                gravityarray = gridsky.turngravity()
-                grid_array = gridsky.turngrid(gravityarray)
-                grid_cell_array = gridsky.turngridcell()
 
                 idx = [i for i in range(count) if i%edgenum == k]
                 
                 with open('pickle_edge'+eid+'.pickle', 'wb') as f:
                     start_time = time.time()
                     for i in idx:
-                        print(i)
-                        out = gridsky.receiveData(grid_array[i])
-                        gridsk1 = gridsky.updateSkyline()
+                        out = gridsky.receiveData(digits_list[i])
+                        cell_skyline = gridsky.updateCellSkyline()
+                        gridsk1 = gridsky.updateSkyline(cell_skyline)
                         result = {'Delete':out,'SK1':gridsk1}
                         pickle.dump(result, f)
 
@@ -298,12 +325,14 @@ if __name__ == "__main__":
             r.write('total transmission {a}\n\n'.format(a=sum(sdatalist) ))
 
             sw = ew*edgenum
-            gridskyServer = servergridSky(grid_cell_array, gridsk1)
+            slidingwindow = gridsky.returnWindow()
+            gridskyServer = servergridSky(digits_list, gridsk1,sw,slidingwindow)
             server_time = time.time()-time.time() # let time be 0
                                   
             for k in range(count):
                 m = k % edgenum # node by node            
                 start_time = time.time()
+                # print("edge[",m,"]:",edgedata[m])
                 gridskyServer.receive(edgedata[m])
                 gridskyServer.update()
                 t=time.time() - start_time # just calculate the recieve and update time
@@ -311,11 +340,11 @@ if __name__ == "__main__":
                 edgedata[m].pop(0)
                     
                 
-                print("server-windowsize is",sw)
-                print("--- finish --- %s seconds ---" % (server_time))
+            print("server-windowsize is",sw)
+            print("--- finish --- %s seconds ---" % (server_time))
             
-                edgedata =[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]]#for wsize test
-                edgedata=deepcopy(templist)#for wsize test 
+            edgedata =[[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]]#for wsize test
+            edgedata=deepcopy(templist)#for wsize test 
             
                 ### write into the file
             r.write('server-windowsize is {a} \n'
@@ -324,8 +353,6 @@ if __name__ == "__main__":
                             .format(a=server_time))
             r.write('server+max edge time {a}\n\n'.format(a=server_time+max(etmax)))
             print("Output write into ",path)
-            
-    os.remove('./pickle_edge0.pickle')
-    os.remove('./pickle_edge1.pickle')
-    os.remove('./pickle_edge2.pickle')
-    os.remove('./pickle_edge3.pickle')
+
+    for i in range (16):
+        os.remove('./pickle_edge'+str(i)+'.pickle')
