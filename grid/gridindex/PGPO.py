@@ -49,27 +49,10 @@ class gridSKy():
                 for i3 in range(dim):
                     if pruned[i1][i3+1] <= pruned[i2][i3+1]:
                         tag += 1
-                        # break
-                    # else:
-                    #     break
                     """compare the gravity"""
                 if tag != 0:
                     continue
                 else:
-                    # tag3 = 0
-                    # for i3 in range(ps):
-                    #     number = pruned[i1][0]*ps + i3
-                    #     for i4 in range(dim):
-                    #         if alldigits_list[number][i4] > pruned[i2][i4+1]:
-                    #             continue
-                    #         else:
-                    #             tag3 += 1
-                    #             break
-                    # if tag3 == 0:
-                    #     jump += 1
-                    #     clean.append(pruned[i1])
-                    # """check all instances"""
-                    
                     for i3 in range(dim):
                         if pruned[i1][i3+1] - pruned[i2][i3+1] == 1:
                             boundary = 1
@@ -79,8 +62,6 @@ class gridSKy():
                         jump += 1
                         clean.append(pruned[i1])
                     else:
-                        # p1min = min(alldigits_list[pruned[i1][0]*ps:pruned[i1][0]*ps+5])
-                        # p2max = max(alldigits_list[pruned[i2][0]*ps:pruned[i2][0]*ps+5])
                         tag = 0
                         for i3 in range(dim):
                             for i4 in range(ps):
@@ -89,9 +70,6 @@ class gridSKy():
                                         continue
                                     else:
                                         tag += 1
-                                        # break
-                            # else:
-                            #     break
                         if tag == 0:
                             jump += 1
                             clean.append(pruned[i1])
@@ -113,23 +91,15 @@ class gridSKy():
                     continue
                 """two of data in cell skyline compare with each other """
                 tag = 0
-                # """
                 for i3 in range(dim):
-                    p2 = max([i[i3] for i in dqueue[cell_skyline[i2][0]].locations])
                     for i4 in range(ps):
-                        p1 = dqueue[cell_skyline[i1][0]].locations[i4][i3]
-                        if p1 > p2:
-                            continue
-                        else:
-                            tag += 1
-                            # break
-                # """
-                # for i3 in range(dim):
-                #     p1 = min([i[i3] for i in dqueue[cell_skyline[i1][0]].locations])
-                #     p2 = max([i[i3] for i in dqueue[cell_skyline[i2][0]].locations])
-                #     if p1 <= p2:
-                #         tag += 1
-                #         break
+                        for i5 in range(ps):
+                            p1 = dqueue[cell_skyline[i1][0]].locations[i4][i3]
+                            p2 = dqueue[cell_skyline[i2][0]].locations[i5][i3]
+                            if p1 > p2:
+                                continue
+                            else:
+                                tag += 1
                 if tag == 0:
                     jump += 1
                     clean.append(cell_skyline[i1])
@@ -156,18 +126,18 @@ if __name__ == '__main__':
     test code
     """
     count = 10000
-    dim = 8
+    dim = 7
     ps = 5
     wsize = 300
     range_min = 0
     range_max = 1000
     n = 10
-    path ='grid-dimension3.txt'
+    path ='grid-dimension.txt'
     # path2='z-skyline_grid16.txt'
     # r2= open(path2,'a+')
     r = open(path,'a+')
 
-    dqueue = batchImport('10000_dim8_pos5_rad5_01000.csv', ps)
+    dqueue = batchImport('10000_dim7_pos5_rad5_01000.csv', ps)
     gravityarray = np.empty((0, dim), int)
     allarray = np.empty((0, dim), int)
     for i in range(count):
@@ -231,7 +201,7 @@ if __name__ == '__main__':
     print('avgcellsky:', avgcellsky)
     print("--- %s seconds ---" % (time.time() - start_time))
 
-    r.write("count = {a}  dim = {b}  ps = {c}  wsize = {d}  range_min = {e}  range_max = {f}  grid = {g}\n"
+    r.write("count = {a}  dim = {b}  ps = {c}  wsize = {d}  range_min = {e}  range_max = {f}  grid = {g} radius=5 \n"
             .format(a=count,b=dim,c=ps,d=wsize,e=range_min,f=range_max,g=n))
     r.write("avgcellsky = {a} \nAvg. sky1 = {b}\n" .format(a=avgcellsky,b=avgsk1))
     r.write("--- %s seconds ---\n" % (time.time() - start_time))
